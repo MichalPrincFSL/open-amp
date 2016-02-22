@@ -137,7 +137,7 @@ struct virtqueue {
         struct vring_desc *indirect;
         uint32_t indirect_paddr;
         uint16_t ndescs;
-    } vq_descx[0];
+    } vq_descx[1];
 };
 
 /* struct to hold vring specific information */

@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2014, Mentor Graphics Corporation
  * All rights reserved.
+ * Copyright (c) 2015 Freescale Semiconductor, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -31,6 +32,7 @@
 #ifndef _RPMSG_CORE_H_
 #define _RPMSG_CORE_H_
 
+#include <stddef.h>
 #include "../porting/env/env.h"
 #include "../virtio/virtio.h"
 #include "../common/hil/hil.h"
@@ -78,6 +80,9 @@
 #define RPMSG_ERR_DEV_ID                        (RPMSG_ERRORS_BASE - 7)
 #define RPMSG_ERR_DEV_ADDR                      (RPMSG_ERRORS_BASE - 8)
 
+/* Zero-Copy extension macros */
+#define RPMSG_HDR_FROM_BUF(buf)                 (struct rpmsg_hdr *)((char*)buf - \
+                                                 offsetof(struct rpmsg_hdr, data))
 struct rpmsg_channel;
 typedef void (*rpmsg_rx_cb_t)(struct rpmsg_channel *, void *, int, void *, unsigned long);
 typedef void (*rpmsg_chnl_cb_t)(struct rpmsg_channel *rp_chl);
@@ -136,7 +141,7 @@ int rpmsg_enqueue_buffer(struct remote_device *rdev, void *buffer,
                 unsigned long len, unsigned short idx);
 void rpmsg_return_buffer(struct remote_device *rdev, void *buffer,
                 unsigned long len, unsigned short idx);
-void *rpmsg_get_tx_buffer(struct remote_device *rdev, unsigned long *len,
+void *rpmsg_get_tx_buffer(struct remote_device *rdev, int *len,
                 unsigned short *idx);
 void rpmsg_free_buffer(struct remote_device *rdev, void *buffer);
 void rpmsg_free_channel(struct rpmsg_channel* rp_chnl);

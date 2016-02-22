@@ -2,6 +2,7 @@
  * Copyright (c) 2014, Mentor Graphics Corporation
  * All rights reserved.
  * Copyright (c) 2015 Xilinx, Inc. All rights reserved.
+ * Copyright (c) 2015 Freescale Semiconductor, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -41,14 +42,13 @@
  *
  **************************************************************************/
 
-#ifdef OPENAMP_BAREMETAL
-#include "env.h"
-#include "../config/config.h"
-
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
-#include "baremetal.h"
+#include "porting/env/env.h"
+#include "porting/config/config.h"
+#include "platform.h"
 
 #if (defined(__CC_ARM))
 #define MEM_BARRIER()      __schedule_barrier()
@@ -57,37 +57,62 @@
 #else
 #define MEM_BARRIER()
 #endif
-static void acquire_spin_lock(void *plock);
-static void release_spin_lock(void *plock);
 
-struct isr_info isr_table[ISR_COUNT];
-int Intr_Count = 0;
-/* Flag to show status of global interrupts. 0 for disabled and 1 for enabled. This
- * is added to prevent recursive global interrupts enablement/disablement.
+static int env_init_counter = 0;
+static struct isr_info isr_table[ISR_COUNT];
+
+/**
+ * env_in_isr
+ *
+ * @returns - true, if currently in ISR
+ *
  */
-int Intr_Enable_Flag = 1;
+inline int env_in_isr(void)
+{
+   return platform_in_isr();
+}
 
 /**
  * env_init
  *
- * Initializes OS/BM environment.
+ * Initializes environment.
  *
  */
 int env_init() {
-	return 0;
+    // verify 'env_init_counter'
+    assert(env_init_counter >= 0);
+    if (env_init_counter < 0)
+        return -1;
+    env_init_counter++;
+    // multiple call of 'env_init' - return ok
+    if (1 < env_init_counter)
+        return 0;
+    // first call
+    memset(isr_table, 0, sizeof(isr_table));
+    return platform_init();
 }
 
 /**
  * env_deinit
  *
- * Uninitializes OS/BM environment.
+ * Uninitializes environment.
  *
  * @returns - execution status
  */
-
 int env_deinit() {
-	return 0;
+    // verify 'env_init_counter'
+    assert(env_init_counter > 0);
+    if (env_init_counter <= 0)
+        return -1;
+    // counter on zero - call platform deinit
+    env_init_counter--;
+    // multiple call of 'env_deinit' - return ok
+    if (0 < env_init_counter)
+        return 0;
+    // last call
+    return platform_deinit();
 }
+
 /**
  * env_allocate_memory - implementation
  *
@@ -95,7 +120,7 @@ int env_deinit() {
  */
 void *env_allocate_memory(unsigned int size)
 {
-	return (malloc(size));
+    return (malloc(size));
 }
 
 /**
@@ -105,10 +130,10 @@ void *env_allocate_memory(unsigned int size)
  */
 void env_free_memory(void *ptr)
 {
-	if (ptr != NULL)
-	{
-		free(ptr);
-	}
+    if (ptr != NULL)
+    {
+        free(ptr);
+    }
 }
 
 /**
@@ -121,7 +146,7 @@ void env_free_memory(void *ptr)
  */
 void env_memset(void *ptr, int value, unsigned long size)
 {
-	memset(ptr, value, size);
+    memset(ptr, value, size);
 }
 
 /**
@@ -133,7 +158,7 @@ void env_memset(void *ptr, int value, unsigned long size)
  * @param len
  */
 void env_memcpy(void *dst, void const * src, unsigned long len) {
-	memcpy(dst,src,len);
+    memcpy(dst,src,len);
 }
 
 /**
@@ -145,7 +170,7 @@ void env_memcpy(void *dst, void const * src, unsigned long len) {
  */
 
 int env_strcmp(const char *dst, const char *src){
-	return (strcmp(dst, src));
+    return (strcmp(dst, src));
 }
 
 /**
@@ -158,7 +183,7 @@ int env_strcmp(const char *dst, const char *src){
  */
 void env_strncpy(char * dest, const char *src, unsigned long len)
 {
-	strncpy(dest, src, len);
+    strncpy(dest, src, len);
 }
 
 /**
@@ -171,7 +196,7 @@ void env_strncpy(char * dest, const char *src, unsigned long len)
  */
 int env_strncmp(char * dest, const char *src, unsigned long len)
 {
-	return (strncmp(dest, src, len));
+    return (strncmp(dest, src, len));
 }
 
 /**
@@ -181,7 +206,7 @@ int env_strncmp(char * dest, const char *src, unsigned long len)
  */
 void env_mb()
 {
-	MEM_BARRIER();
+    MEM_BARRIER();
 }
 
 /**
@@ -189,7 +214,7 @@ void env_mb()
  */
 void env_rmb()
 {
-	MEM_BARRIER();
+    MEM_BARRIER();
 }
 
 /**
@@ -197,7 +222,7 @@ void env_rmb()
  */
 void env_wmb()
 {
-	MEM_BARRIER();
+    MEM_BARRIER();
 }
 
 /**
@@ -207,7 +232,7 @@ void env_wmb()
  */
 unsigned long env_map_vatopa(void *address)
 {
-	return platform_vatopa(address);
+    return platform_vatopa(address);
 }
 
 /**
@@ -217,7 +242,7 @@ unsigned long env_map_vatopa(void *address)
  */
 void *env_map_patova(unsigned long address)
 {
-	return platform_patova(address);
+    return platform_patova(address);
 }
 
 /**
@@ -228,7 +253,7 @@ void *env_map_patova(unsigned long address)
  */
 int env_create_mutex(void **lock, int count)
 {
-	return 0;
+    return 0;
 }
 
 /**
@@ -249,7 +274,7 @@ void env_delete_mutex(void *lock)
  */
 void env_lock_mutex(void *lock)
 {
-	env_disable_interrupts();
+    platform_interrupt_disable_all();
 }
 
 /**
@@ -257,10 +282,9 @@ void env_lock_mutex(void *lock)
  *
  * Releases the given lock.
  */
-
 void env_unlock_mutex(void *lock)
 {
-	env_restore_interrupts();
+    platform_interrupt_enable_all();
 }
 
 
@@ -272,19 +296,8 @@ void env_unlock_mutex(void *lock)
  * thread context.
  */
 int env_create_sync_lock(void **lock , int state) {
-	int *slock;
-
-	slock = (int *)malloc(sizeof(int));
-	if(slock){
-		*slock = state;
-		*lock = slock;
-	}
-	else{
-		*lock = NULL;
-		return -1;
-	}
-
-	return 0;
+    /* TODO */
+    return 0;
 }
 
 /**
@@ -294,8 +307,7 @@ int env_create_sync_lock(void **lock , int state) {
  *
  */
 void env_delete_sync_lock(void *lock){
-	if(lock)
-		free(lock);
+    /* TODO */
 }
 
 /**
@@ -305,7 +317,7 @@ void env_delete_sync_lock(void *lock){
  * this function waits for lock to become available.
  */
 void env_acquire_sync_lock(void *lock){
-	acquire_spin_lock(lock);
+    /* TODO */
 }
 
 /**
@@ -313,9 +325,8 @@ void env_acquire_sync_lock(void *lock){
  *
  * Releases the given lock.
  */
-
 void env_release_sync_lock(void *lock){
-	release_spin_lock(lock);
+    /* TODO */
 }
 
 /**
@@ -323,10 +334,9 @@ void env_release_sync_lock(void *lock){
  *
  * Suspends the calling thread for given time , in msecs.
  */
-
 void env_sleep_msec(int num_msec)
 {
-
+    platform_time_delay(num_msec);
 }
 
 /**
@@ -337,10 +347,7 @@ void env_sleep_msec(int num_msec)
  */
 void env_disable_interrupts()
 {
-	if(Intr_Enable_Flag == 1) {
-		disable_global_interrupts();
-		Intr_Enable_Flag = 0;
-	}
+    platform_interrupt_disable_all();
 }
 
 /**
@@ -351,10 +358,7 @@ void env_disable_interrupts()
  */
 void env_restore_interrupts()
 {
-	if(Intr_Enable_Flag == 0) {
-		restore_global_interrupts();
-		Intr_Enable_Flag = 1;
-	}
+    platform_interrupt_enable_all();
 }
 
 /**
@@ -366,41 +370,26 @@ void env_restore_interrupts()
  * @param isr    - interrupt handler
  */
 void env_register_isr(int vector , void *data ,
-			void (*isr)(int vector , void *data))
+                void (*isr)(int vector , void *data))
 {
-	env_disable_interrupts();
-
-	if(Intr_Count < ISR_COUNT)
-	{
-		/* Save interrupt data */
-		isr_table[Intr_Count].vector = vector;
-		isr_table[Intr_Count].data = data;
-		isr_table[Intr_Count++].isr = isr;
-	}
-
-	env_restore_interrupts();
+    assert(vector < ISR_COUNT);
+    if(vector < ISR_COUNT)
+    {
+        /* Save interrupt data */
+        isr_table[vector].data = data;
+        isr_table[vector].isr = isr;
+    }
 }
 
 void env_update_isr(int vector , void *data ,
-			void (*isr)(int vector , void *data))
+      void (*isr)(int vector , void *data))
 {
-	int idx;
-	struct isr_info *info;
-
-	env_disable_interrupts();
-
-	for(idx = 0; idx < ISR_COUNT; idx++)
-	{
-		info = &isr_table[idx];
-		if(info->vector == vector)
-		{
-			info->data = data;
-			info->isr = isr;
-			break;
-		}
-	}
-
-    env_restore_interrupts();
+    assert(vector < ISR_COUNT);
+    if(vector < ISR_COUNT)
+    {
+        isr_table[vector].data = data;
+        isr_table[vector].isr = isr;
+    }
 }
 
 /**
@@ -414,24 +403,15 @@ void env_update_isr(int vector , void *data ,
  */
 
 void env_enable_interrupt(unsigned int vector , unsigned int priority ,
-			unsigned int polarity)
+                unsigned int polarity)
 {
-	int idx;
-
-	env_disable_interrupts();
-
-	for(idx = 0; idx < ISR_COUNT; idx++)
-	{
-		if(isr_table[idx].vector == vector)
-		{
-			isr_table[idx].priority = priority;
-			isr_table[idx].type = polarity;
-			platform_interrupt_enable(vector, polarity, priority);
-			break;
-		}
-	}
-
-	env_restore_interrupts();
+    assert(vector < ISR_COUNT);
+    if (vector < ISR_COUNT)
+    {
+        isr_table[vector].priority = priority;
+        isr_table[vector].type = polarity;
+        platform_interrupt_enable(vector, polarity, priority);
+    }
 }
 
 /**
@@ -444,7 +424,7 @@ void env_enable_interrupt(unsigned int vector , unsigned int priority ,
 
 void env_disable_interrupt(unsigned int vector)
 {
-	platform_interrupt_disable(vector);
+    platform_interrupt_disable(vector);
 }
 
 /**
@@ -471,8 +451,8 @@ void env_map_memory(unsigned int pa, unsigned int va, unsigned int size,
  */
 
 void env_disable_cache() {
-	platform_cache_all_flush_invalidate();
-	platform_cache_disable();
+    platform_cache_all_flush_invalidate();
+    platform_cache_disable();
 }
 
 /**
@@ -485,77 +465,25 @@ void env_disable_cache() {
  */
 unsigned long long env_get_timestamp(void) {
 
-	/* TODO: Provide implementation for baremetal*/
-	return 0;
+    /* TODO: Provide implementation for baremetal*/
+    return 0;
 }
 
 /*========================================================= */
 /* Util data / functions for BM */
 
-void bm_env_isr(int vector) {
-	int idx;
-	struct isr_info *info;
 
-	env_disable_interrupt(vector);
-	for(idx = 0; idx < ISR_COUNT; idx++)
-	{
-		info = &isr_table[idx];
-		if(info->vector == vector)
-		{
-			 info->isr(info->vector , info->data);
-			 env_enable_interrupt(info->vector , info->priority, info->type);
-			 break;
-		}
-	}
+void env_isr(int vector) {
+    struct isr_info *info;
+
+    assert(vector < ISR_COUNT);
+    if (vector < ISR_COUNT)
+    {
+        info = &isr_table[vector];
+        assert(NULL != info->isr);
+        if (NULL != info->isr)
+        {
+            info->isr(vector, info->data);
+        }
+    }
 }
-
-static inline unsigned int xchg(void* plock, unsigned int lockVal)
-{
-	volatile unsigned int tmpVal = 0;
-	volatile unsigned int tmpVal1 = 0;
-
-#ifdef __GNUC__
-
-
-	asm (
-			"1:                                \n\t"
-			"LDREX  %[tmpVal], [%[plock]]      \n\t"
-			"STREX  %[tmpVal1], %[lockVal], [%[plock]] \n\t"
-			"CMP    %[tmpVal1], #0                     \n\t"
-			"BNE    1b                         \n\t"
-			"DMB                               \n\t"
-			: [tmpVal] "=&r"(tmpVal)
-			: [tmpVal1] "r" (tmpVal1), [lockVal] "r"(lockVal), [plock] "r"(plock)
-			: "cc", "memory"
-		);
-
-#endif
-
-	return tmpVal;
-}
-
-/**
- *
- * acquire_spin_lock
- *
- */
-static void acquire_spin_lock(void *plock)
-{
-	const int lockVal = 0;
-	volatile unsigned int retVal;
-
-	do {
-		retVal = xchg(plock, lockVal);
-	} while (retVal==lockVal);
-}
-
-/**
- * release_spin_lock
- */
-static void release_spin_lock(void *plock)
-{
-	MEM_BARRIER();
-
-	xchg(plock, 1);
-}
-#endif

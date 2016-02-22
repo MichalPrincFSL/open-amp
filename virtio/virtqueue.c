@@ -324,6 +324,7 @@ void *virtqueue_get_available_buffer(struct virtqueue *vq, uint16_t *avail_idx,
     uint16_t head_idx = 0;
     void *buffer;
 
+    /*vq->vq_ring.avial->idx is updated in "rpmsg_rdev_create_virtqueues" "virtqueue_add_buffer" */
     if (vq->vq_available_idx == vq->vq_ring.avail->idx) {
         return (VQ_NULL);
     }

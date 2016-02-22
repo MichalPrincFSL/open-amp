@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2014, Mentor Graphics Corporation
  * All rights reserved.
+ * Copyright (c) 2015 Freescale Semiconductor, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -139,7 +140,7 @@ int rpmsg_send_offchannel_raw(struct rpmsg_channel *rp_chnl, unsigned long src,
     int status = RPMSG_SUCCESS;
     unsigned short idx;
     int tick_count = 0;
-    unsigned long buff_len;
+    int buff_len;
 
     if (!rp_chnl) {
         return RPMSG_ERR_PARAM;
@@ -193,6 +194,7 @@ int rpmsg_send_offchannel_raw(struct rpmsg_channel *rp_chnl, unsigned long src,
                 rp_hdr->dst = dst;
                 rp_hdr->src = src;
                 rp_hdr->len = size;
+                rp_hdr->flags = 0;
 
                 /* Copy data to rpmsg buffer. */
                 env_memcpy(rp_hdr->data, data, size);
@@ -213,6 +215,21 @@ int rpmsg_send_offchannel_raw(struct rpmsg_channel *rp_chnl, unsigned long src,
     /* Do cleanup in case of error.*/
     if (status != RPMSG_SUCCESS) {
         rpmsg_free_buffer(rdev, buffer);
+        // in case of error ask master 
+        // to release buffer
+        if (rdev->role == RPMSG_MASTER && status == RPMSG_ERR_BUFF_SIZE)
+        {
+            rp_hdr = (struct rpmsg_hdr *) buffer;
+            rp_hdr->dst = dst;
+            rp_hdr->src = src;
+            rp_hdr->len = 0;
+            rp_hdr->flags = RPMSG_DROP_HDR_FLAG;
+            int tmp_status = rpmsg_enqueue_buffer(rdev, buffer, buff_len, idx);
+            if (tmp_status == RPMSG_SUCCESS) {
+                /* Let the other side know that there is a job to process. */
+                virtqueue_kick(rdev->tvq);
+            }
+        }
     }
 
     return status;
@@ -355,8 +372,7 @@ struct rpmsg_channel *rpmsg_create_channel(struct remote_device *rdev,
     }
 
     /* Create default endpoint for the channel */
-    rp_ept = rpmsg_create_ept(rp_chnl , rdev->default_cb, rdev,
-                    RPMSG_ADDR_ANY);
+    rp_ept = rpmsg_create_ept(rp_chnl , rdev->default_cb, rdev, RPMSG_ADDR_ANY);
 
     if (!rp_ept) {
         _rpmsg_delete_channel(rp_chnl);

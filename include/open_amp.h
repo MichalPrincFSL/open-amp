@@ -31,6 +31,7 @@
 #define OPEN_AMP_H_
 
 #include "../rpmsg/rpmsg.h"
+#include "../rpmsg/rpmsg_ext.h"
 #include "../remoteproc/remoteproc.h"
 
 

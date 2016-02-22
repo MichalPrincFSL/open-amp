@@ -2,6 +2,7 @@
  * Copyright (c) 2014, Mentor Graphics Corporation
  * All rights reserved.
  * Copyright (c) 2015 Xilinx, Inc. All rights reserved.
+ * Copyright (c) 2015 Freescale Semiconductor, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -68,12 +69,17 @@
  *       env_sleep_msec
  *       env_disable_interrupts
  *       env_restore_interrupts
+ *       env_create_queue
+ *       env_delete_queue
+ *       env_put_queue
+ *       env_get_queue
  *
  **************************************************************************/
 #ifndef _ENV_H_
 #define _ENV_H_
 
 #include <stdio.h>
+#include "rpmsg_porting.h"
 
 /**
  * env_init
@@ -83,7 +89,7 @@
  * @returns - execution status
  */
 
-int env_init();
+int env_init(void);
 
 /**
  * env_deinit
@@ -93,7 +99,7 @@ int env_init();
  * @returns - execution status
  */
 
-int env_deinit();
+int env_deinit(void);
 /**
  * -------------------------------------------------------------------------
  *
@@ -138,7 +144,8 @@ void env_strcpy(char *, const char *);
 int env_strcmp(const char *, const char *);
 void env_strncpy(char *, const char *, unsigned long);
 int env_strncmp(char *, const char *, unsigned long);
-#define env_print(...)  printf(__VA_ARGS__)
+//#define env_print(...)  printf(__VA_ARGS__)
+#define env_print(...)  
 
 /**
  *-----------------------------------------------------------------------------
@@ -185,7 +192,7 @@ void *env_map_patova(unsigned long address);
  * Inserts memory barrier.
  */
 
-void env_mb();
+void env_mb(void);
 
 /**
  * env_rmb
@@ -193,7 +200,7 @@ void env_mb();
  * Inserts read memory barrier
  */
 
-void env_rmb();
+void env_rmb(void);
 
 /**
  * env_wmb
@@ -201,7 +208,7 @@ void env_rmb();
  * Inserts write memory barrier
  */
 
-void env_wmb();
+void env_wmb(void);
 
 /**
  *-----------------------------------------------------------------------------
@@ -317,7 +324,7 @@ void env_sleep_msec(int num_msec);
  * Disables system interrupts
  *
  */
-void env_disable_interrupts();
+void env_disable_interrupts(void);
 
 /**
  * env_restore_interrupts
@@ -325,7 +332,7 @@ void env_disable_interrupts();
  * Enables system interrupts
  *
  */
-void env_restore_interrupts();
+void env_restore_interrupts(void);
 
 /**
  * env_register_isr
@@ -422,8 +429,69 @@ unsigned long long env_get_timestamp(void);
  *
  */
 
-void env_disable_cache();
+void env_disable_cache(void);
 
 typedef void LOCK;
+
+/**
+ * env_create_queue
+ *
+ * Creates a message queue.
+ *
+ * @param queue -  pointer to created queue
+ * @param length -  maximum number of elements in the queue
+ * @param item_size - queue element size in bytes
+ *
+ * @return - status of function execution
+ */
+int env_create_queue(void **queue, int length , int element_size);
+
+/**
+ * env_delete_queue
+ *
+ * Deletes the message queue.
+ *
+ * @param queue - queue to delete
+ */
+
+void env_delete_queue(void *queue);
+
+/**
+ * env_put_queue
+ *
+ * Put an element in a queue.
+ *
+ * @param queue - queue to put element in
+ * @param msg - pointer to the message to be put into the queue
+ * @param timeout_ms - timeout in ms
+ *
+ * @return - status of function execution
+ */
+
+int env_put_queue(void *queue, void* msg, int timeout_ms);
+
+/**
+ * env_get_queue
+ *
+ * Get an element out of a queue.
+ *
+ * @param queue - queue to get element from
+ * @param msg - pointer to a memory to save the message
+ * @param timeout_ms - timeout in ms
+ *
+ * @return - status of function execution
+ */
+
+int env_get_queue(void *queue, void* msg, int timeout_ms);
+
+/**
+ * env_isr
+ *
+ * Invoke RPMSG/IRQ callback
+ *
+ * @param vector - RPMSG IRQ vector ID.
+ */
+
+void env_isr(int vector);
 
 #endif /* _ENV_H_ */

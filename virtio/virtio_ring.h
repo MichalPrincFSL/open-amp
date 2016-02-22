@@ -65,7 +65,7 @@ struct vring_desc {
 struct vring_avail {
         uint16_t flags;
         uint16_t idx;
-        uint16_t ring[0];
+        uint16_t ring[1];
 };
 
 /* uint32_t is used here for ids for padding reasons. */
@@ -79,7 +79,7 @@ struct vring_used_elem {
 struct vring_used {
         uint16_t flags;
         uint16_t idx;
-        struct vring_used_elem ring[0];
+        struct vring_used_elem ring[1];
 };
 
 struct vring {
@@ -145,7 +145,7 @@ vring_init(struct vring *vr, unsigned int num, uint8_t *p,
         vr->desc = (struct vring_desc *) p;
         vr->avail = (struct vring_avail *) (p +
 	    num * sizeof(struct vring_desc));
-        vr->used = (void *)
+        vr->used = (struct vring_used *)
 	    (((unsigned long) &vr->avail->ring[num] + align-1) & ~(align-1));
 }
 
