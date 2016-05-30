@@ -29,6 +29,8 @@
 /* Prototype for internal functions. */
 static void vq_ring_init(struct virtqueue *);
 static void vq_ring_update_avail(struct virtqueue *, uint16_t);
+static void vq_ring_update_used(struct virtqueue *vq,
+                    uint16_t head_idx, uint_t len);
 static uint16_t vq_ring_add_buffer(struct virtqueue *, struct vring_desc *,
 				   uint16_t, struct llist *, int, int);
 static int vq_ring_enable_interrupt(struct virtqueue *, uint16_t);
@@ -168,11 +170,10 @@ int virtqueue_add_buffer(struct virtqueue *vq, struct llist *buffer,
 		vq->vq_desc_head_idx = idx;
 		vq->vq_free_cnt -= needed;
 
-		if (vq->vq_free_cnt == 0) {
+		if (vq->vq_free_cnt == 0)
 			VQ_RING_ASSERT_CHAIN_TERM(vq);
-		} else {
+		else
 			VQ_RING_ASSERT_VALID_IDX(vq, idx);
-		}
 
 		/*
 		 * Update vring_avail control block fields so that other
@@ -240,11 +241,10 @@ int virtqueue_add_single_buffer(struct virtqueue *vq, void *cookie,
 		vq->vq_desc_head_idx = idx;
 		vq->vq_free_cnt--;
 
-		if (vq->vq_free_cnt == 0) {
+		if (vq->vq_free_cnt == 0)
 			VQ_RING_ASSERT_CHAIN_TERM(vq);
-		} else {
+		else
 			VQ_RING_ASSERT_VALID_IDX(vq, idx);
-		}
 
 		vq_ring_update_avail(vq, head_idx);
 	}
@@ -367,29 +367,60 @@ void *virtqueue_get_available_buffer(struct virtqueue *vq, uint16_t * avail_idx,
 int virtqueue_add_consumed_buffer(struct virtqueue *vq, uint16_t head_idx,
 				  uint32_t len)
 {
-
-	struct vring_used_elem *used_desc = VQ_NULL;
-	uint16_t used_idx;
-
-	if (head_idx > vq->vq_nentries) {
+	if ((head_idx > vq->vq_nentries) || (head_idx < 0)) {
 		return (ERROR_VRING_NO_BUFF);
 	}
 
 	VQUEUE_BUSY(vq);
 
-	used_idx = vq->vq_ring.used->idx & (vq->vq_nentries - 1);
-	used_desc = &(vq->vq_ring.used->ring[used_idx]);
-	used_desc->id = head_idx;
-	used_desc->len = len;
+	vq_ring_update_used(vq, head_idx, len);
+	VQUEUE_IDLE(vq);
 
-	env_wmb();
+	return (VQUEUE_SUCCESS);
+}
 
-	vq->vq_ring.used->idx++;
+int virtqueue_fill_used_buffers(struct virtqueue *vq, struct llist *buffer,
+	uint32_t len, void *cookie)
+{
+
+	struct vq_desc_extra *dxp = VQ_NULL;
+	uint16_t head_idx;
+	uint16_t idx;
+
+
+	VQUEUE_BUSY(vq);
+
+	VQASSERT(vq, cookie != VQ_NULL, "enqueuing with no cookie");
+
+	head_idx = vq->vq_desc_head_idx;
+	VQ_RING_ASSERT_VALID_IDX(vq, head_idx);
+	dxp = &vq->vq_descx[head_idx];
+
+	VQASSERT(vq, (dxp->cookie == VQ_NULL), "cookie already exists for index");
+
+	dxp->cookie = cookie;
+	dxp->ndescs = 1;
+
+    /* Enqueue buffer onto the ring. */
+	idx = vq_ring_add_buffer(vq, vq->vq_ring.desc, head_idx, buffer,
+		0, 1);
+
+	vq->vq_desc_head_idx = idx;
+	vq->vq_free_cnt--;
+
+	if (vq->vq_free_cnt == 0)
+		VQ_RING_ASSERT_CHAIN_TERM(vq);
+	else
+		VQ_RING_ASSERT_VALID_IDX(vq, idx);
+
+
+	vq_ring_update_used(vq, head_idx, len);
 
 	VQUEUE_IDLE(vq);
 
 	return (VQUEUE_SUCCESS);
 }
+
 
 /**
  * virtqueue_enable_cb  - Enables callback generation
@@ -514,8 +545,6 @@ static uint16_t vq_ring_add_buffer(struct virtqueue *vq,
 	int i, needed;
 	uint16_t idx;
 
-	(void)vq;
-
 	needed = readable + writable;
 
 	for (i = 0, idx = head_idx; (i < needed && buffer != VQ_NULL);
@@ -554,9 +583,8 @@ static void vq_ring_free_chain(struct virtqueue *vq, uint16_t desc_idx)
 	dp = &vq->vq_ring.desc[desc_idx];
 	dxp = &vq->vq_descx[desc_idx];
 
-	if (vq->vq_free_cnt == 0) {
+	if (vq->vq_free_cnt == 0)
 		VQ_RING_ASSERT_CHAIN_TERM(vq);
-	}
 
 	vq->vq_free_cnt += dxp->ndescs;
 	dxp->ndescs--;
@@ -628,6 +656,33 @@ static void vq_ring_update_avail(struct virtqueue *vq, uint16_t desc_idx)
 
 	/* Keep pending count until virtqueue_notify(). */
 	vq->vq_queued_cnt++;
+}
+
+/**
+ *
+ * vq_ring_update_used
+ *
+ */
+static void vq_ring_update_used(struct virtqueue *vq, uint16_t head_idx, uint_t len) 
+{
+	uint16_t used_idx;
+	struct vring_used_elem *used_desc = VQ_NULL;
+
+	/*
+	* Place the head of the descriptor chain into the next slot and make
+	* it usable to the host. The chain is made available now rather than
+	* deferring to virtqueue_notify() in the hopes that if the host is
+	* currently running on another CPU, we can keep it processing the new
+	* descriptor.
+	*/
+	used_idx = vq->vq_ring.used->idx & (vq->vq_nentries - 1);
+	used_desc = &(vq->vq_ring.used->ring[used_idx]);
+	used_desc->id = head_idx;
+	used_desc->len = len;
+
+	env_wmb();
+
+	vq->vq_ring.used->idx++;
 }
 
 /**

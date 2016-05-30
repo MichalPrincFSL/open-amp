@@ -36,7 +36,6 @@
 #include "machine.h"
 #include "machine_system.h"
 #include "openamp/env.h"
-#include "openamp/hil.h"
 
 #define CORTEXR5_CPSR_INTERRUPTS_BITS (XREG_CPSR_IRQ_ENABLE | XREG_CPSR_FIQ_ENABLE)
 
@@ -72,17 +71,14 @@
 int platform_interrupt_enable(unsigned int vector, unsigned int polarity,
 			      unsigned int priority)
 {
-	(void)polarity;
-	(void)priority;
-
 	XScuGic_EnableIntr(XPAR_SCUGIC_0_DIST_BASEADDR, vector);
-	return (int)vector;
+	return (vector);
 }
 
 int platform_interrupt_disable(unsigned int vector)
 {
 	XScuGic_DisableIntr(XPAR_SCUGIC_0_DIST_BASEADDR, vector);
-	return (int)vector;
+	return (vector);
 }
 
 void platform_dcache_all_flush()
@@ -107,8 +103,6 @@ void platform_map_mem_region(unsigned int va, unsigned int pa,
 			     unsigned int size, unsigned int flags)
 {
 	unsigned int r5_flags;
-
-	(void)va; 
 
 	/* Assume DEVICE_SHARED if nothing indicates this is memory.  */
 	r5_flags = DEVICE_SHARED;
@@ -168,12 +162,6 @@ void disable_global_interrupts()
 
 }
 
-void platform_isr(int vect_id, void * data)
-{
-    (void)vect_id;
-    hil_isr(((struct proc_vring *)data));
-}
-
 /*==================================================================*/
 /* The function definitions below are provided to prevent the build */
 /* warnings for missing I/O function stubs in case of unhosted libs */
@@ -198,9 +186,6 @@ void platform_isr(int vect_id, void * data)
 __attribute__ ((weak))
 int _fstat(int file, struct stat *st)
 {
-	(void)file;
-	(void)st;
-
 	return (0);
 }
 
@@ -220,8 +205,6 @@ int _fstat(int file, struct stat *st)
 __attribute__ ((weak))
 int _isatty(int file)
 {
-	(void)file;
-
 	return (1);
 }
 
@@ -243,10 +226,6 @@ int _isatty(int file)
 __attribute__ ((weak))
 int _lseek(int file, int ptr, int dir)
 {
-	(void)file;
-	(void)ptr;
-	(void)dir;
-
 	return (0);
 }
 
@@ -266,10 +245,6 @@ int _lseek(int file, int ptr, int dir)
 __attribute__ ((weak))
 int _open(const char *filename, int flags, int mode)
 {
-	(void)filename;
-	(void)flags;
-	(void)mode;
-
 	/* Any number will work. */
 	return (1);
 }
@@ -289,8 +264,6 @@ int _open(const char *filename, int flags, int mode)
 __attribute__ ((weak))
 int _close(int file)
 {
-	(void)file;
-
 	return (-1);
 }
 
@@ -309,10 +282,6 @@ int _close(int file)
 __attribute__ ((weak))
 int _read(int fd, char *buffer, int buflen)
 {
-	(void)fd;
-	(void)buffer;
-	(void)buflen;
-
 	return -1;
 }
 
@@ -332,10 +301,6 @@ int _read(int fd, char *buffer, int buflen)
 __attribute__ ((weak))
 int _write(int file, const char *ptr, int len)
 {
-	(void)file;
-	(void)ptr;
-	(void)len;
-
 	return 0;
 }
 #endif

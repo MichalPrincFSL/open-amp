@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2014, Mentor Graphics Corporation
  * All rights reserved.
+ * Copyright (c) 2016 Freescale Semiconductor, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -30,6 +31,7 @@
 #ifndef _RPMSG_CORE_H_
 #define _RPMSG_CORE_H_
 
+#include <stddef.h>
 #include "openamp/compiler.h"
 #include "openamp/env.h"
 #include "openamp/virtio.h"
@@ -38,11 +40,7 @@
 #include "openamp/llist.h"
 #include "openamp/rpmsg.h"
 
-/* Configurable parameters */
-#define RPMSG_BUFFER_SIZE                       512
-#define RPMSG_MAX_VQ_PER_RDEV                   2
-#define RPMSG_NS_EPT_ADDR                       0x35
-#define RPMSG_ADDR_BMP_SIZE                     4
+#include "rpmsg_default_config.h"
 
 /* Definitions for device types , null pointer, etc.*/
 #define RPMSG_SUCCESS                           0
@@ -61,12 +59,6 @@
 #define RPMSG_DEV_STATE_IDLE                    0
 #define RPMSG_DEV_STATE_ACTIVE                  1
 
-/* Total tick count for 15secs - 1msec tick. */
-#define RPMSG_TICK_COUNT                        15000
-
-/* Time to wait - In multiple of 10 msecs. */
-#define RPMSG_TICKS_PER_INTERVAL                10
-
 /* Error macros. */
 #define RPMSG_ERRORS_BASE                       -3000
 #define RPMSG_ERR_NO_MEM                        (RPMSG_ERRORS_BASE - 1)
@@ -78,10 +70,12 @@
 #define RPMSG_ERR_DEV_ID                        (RPMSG_ERRORS_BASE - 7)
 #define RPMSG_ERR_DEV_ADDR                      (RPMSG_ERRORS_BASE - 8)
 
+/* Zero-Copy extension macros */
+#define RPMSG_HDR_FROM_BUF(buf)                 (struct rpmsg_hdr *)((char*)buf - \
+                                                 sizeof(struct rpmsg_hdr))
 struct rpmsg_channel;
-typedef void (*rpmsg_rx_cb_t) (struct rpmsg_channel *, void *, int, void *,
-			       unsigned long);
-typedef void (*rpmsg_chnl_cb_t) (struct rpmsg_channel * rp_chl);
+typedef void (*rpmsg_rx_cb_t)(struct rpmsg_channel *, void *, int, void *, unsigned long);
+typedef void (*rpmsg_chnl_cb_t)(struct rpmsg_channel *rp_chl);
 /**
  * remote_device
  *
@@ -139,7 +133,7 @@ int rpmsg_enqueue_buffer(struct remote_device *rdev, void *buffer,
 			 unsigned long len, unsigned short idx);
 void rpmsg_return_buffer(struct remote_device *rdev, void *buffer,
 			 unsigned long len, unsigned short idx);
-void *rpmsg_get_tx_buffer(struct remote_device *rdev, unsigned long *len,
+void *rpmsg_get_tx_buffer(struct remote_device *rdev, int *len,
 			  unsigned short *idx);
 void rpmsg_free_buffer(struct remote_device *rdev, void *buffer);
 void rpmsg_free_channel(struct rpmsg_channel *rp_chnl);

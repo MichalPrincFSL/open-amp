@@ -33,7 +33,6 @@
 #include "baremetal.h"
 #include "machine_system.h"
 #include "openamp/env.h"
-#include "openamp/hil.h"
 
 static inline unsigned int get_cpu_id_arm(void)
 {
@@ -208,11 +207,4 @@ void *platform_patova(unsigned long addr)
 	return ((void *)addr);
 
 }
-
-void platform_isr(int vect_id, void * data)
-{
-    (void)vect_id;
-    hil_isr(((struct proc_vring *)data));
-}
-
 

@@ -43,6 +43,8 @@
 
 #include "openamp/firmware.h"
 
+#if defined(OPENAMP_FIRMWARE_LOADER_ENABLE)
+
 /* Start and end addresses of firmware image for remotes. These are defined in the
  * object files that are obtained by converting the remote ELF Image into object
  * files. These symbols are not used for remotes.
@@ -85,7 +87,7 @@ const struct firmware_info fw_table[] = { {"firmware1",
 int config_get_firmware(char *fw_name, unsigned int *start_addr,
 			unsigned int *size)
 {
-	unsigned int idx;
+	int idx;
 	for (idx = 0; idx < sizeof(fw_table) / (sizeof(struct firmware_info));
 	     idx++) {
 		if (!env_strncmp((char *)fw_table[idx].name, fw_name,
@@ -99,3 +101,4 @@ int config_get_firmware(char *fw_name, unsigned int *start_addr,
 	}
 	return -1;
 }
+#endif

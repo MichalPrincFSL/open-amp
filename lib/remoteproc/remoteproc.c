@@ -145,17 +145,13 @@ int remoteproc_resource_deinit(struct remote_proc *rproc)
 
 	env_deinit();
 
-	/*
-	 * Flush and Invalidate the caches - When the application is built with
-	 * Xilinx Standalone BSP, caches are invalidated as part of boot process.
-	 * Even if the master boots firmware multiple times without hard reset on
-	 * same core, caches are flushed and invalidated at the end of
-	 * remoteproc_resource_deinit for this run and caches would be again
-	 * invalidated before starting the main thread of the application on next
-	 * run to avoid any cache inconsistencies.
+	/* Disable the caches - This is required if master boots firmwares
+	 * multiple times without hard reset on same core. If caches are
+	 * not invalidated at this point in time then subsequent firmware
+	 * boots on the same core may experience cache inconsistencies.
+	 *
 	 */
-	 env_flush_invalidate_all_caches();
-
+	env_disable_cache();
 
 	return RPROC_SUCCESS;
 }

@@ -4,7 +4,7 @@
  * Copyright (C) 2011 Texas Instruments, Inc.
  * Copyright (C) 2011 Google, Inc.
  * All rights reserved.
- * Copyright (c) 2016 NXP, Inc. All rights reserved.
+ * Copyright (c) 2016 Freescale Semiconductor, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -41,6 +41,8 @@
 /* The feature bitmap for virtio rpmsg */
 #define VIRTIO_RPMSG_F_NS	0	/* RP supports name service notifications */
 #define RPMSG_NAME_SIZE     32
+#define RPMSG_DROP_HDR_FLAG 1
+#define RPMSG_BUF_HELD      (1U << 31)
 
 #define RPMSG_LOCATE_DATA(p)  ((unsigned char *) p + sizeof (struct rpmsg_hdr))
 
@@ -62,6 +64,20 @@ struct rpmsg_hdr {
 	unsigned short len;
 	unsigned short flags;
 } OPENAMP_PACKED_END;
+
+/**
+ * struct rpmsg_hdr_reserved - this is the "union" of the rpmsg_hdr->reserved
+ * @idx: index of a buffer (not to be returned back to the buffer's pool)
+ * @totlen: lenght of a buffer
+ *
+ * This structure has been introduced to keep the backward compatibility. 
+ * It could be integrated into rpmsg_hdr struct, replacing the reserved field.
+ */
+struct rpmsg_hdr_reserved
+{
+    short int idx;
+    short int totlen;
+};
 
 /**
  * struct rpmsg_ns_msg - dynamic name service announcement message

@@ -137,7 +137,7 @@ struct virtqueue {
 		struct vring_desc *indirect;
 		uint32_t indirect_paddr;
 		uint16_t ndescs;
-	} vq_descx[0];
+	} vq_descx[1];
 };
 
 /* struct to hold vring specific information */
@@ -199,6 +199,9 @@ int virtqueue_create(struct virtio_device *device, unsigned short id,
 
 int virtqueue_add_buffer(struct virtqueue *vq, struct llist *buffer,
 			 int readable, int writable, void *cookie);
+
+int virtqueue_fill_used_buffers(struct virtqueue *vq, struct llist *buffer,
+			 uint_t len, void *cookie);
 
 int virtqueue_add_single_buffer(struct virtqueue *vq, void *cookie,
 				void *buffer_addr, uint32_t len, int writable,

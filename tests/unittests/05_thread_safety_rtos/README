@@ -1,0 +1,3 @@
+This tests CANNOT be run with imx_tty_rpmsg.ko!
+It requires rpmsg_sysfs.ko.
+Please contact marek.novak@nxp.com in case of any problems with this test.

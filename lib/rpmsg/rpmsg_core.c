@@ -2,7 +2,7 @@
  * Copyright (c) 2014, Mentor Graphics Corporation
  * All rights reserved.
  * Copyright (c) 2015 Xilinx, Inc. All rights reserved.
- * Copyright (c) 2016 NXP, Inc. All rights reserved.
+ * Copyright (c) 2016 Freescale Semiconductor, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -47,6 +47,7 @@
  *
  **************************************************************************/
 #include "openamp/rpmsg.h"
+#include <assert.h>
 
 /* Internal functions */
 static void rpmsg_rx_callback(struct virtqueue *vq);
@@ -196,8 +197,9 @@ void _rpmsg_delete_channel(struct rpmsg_channel *rp_chnl)
 			remove_from_list(&rp_chnl->rdev->rp_channels, node);
 			env_unlock_mutex(rp_chnl->rdev->lock);
 			env_free_memory(node);
-		}
-		env_free_memory(rp_chnl);
+            //channel must be in a linked list or already freed
+            env_free_memory(rp_chnl);
+        }
 	}
 }
 
@@ -253,13 +255,13 @@ struct rpmsg_endpoint *_create_endpoint(struct remote_device *rdev,
 		}
 	} else {
 		addr = rpmsg_get_address(rdev->bitmap, RPMSG_ADDR_BMP_SIZE);
-		if ((int)addr < 0) {
+		if (addr < 0) {
 			status = RPMSG_ERR_DEV_ADDR;
 		}
 	}
 
 	/* Do cleanup in case of error and return */
-	if (RPMSG_SUCCESS != status) {
+	if (status) {
 		env_free_memory(node);
 		env_free_memory(rp_ept);
 		env_unlock_mutex(rdev->lock);
@@ -299,8 +301,9 @@ void _destroy_endpoint(struct remote_device *rdev,
 		remove_from_list(&rdev->rp_endpoints, node);
 		env_unlock_mutex(rdev->lock);
 		env_free_memory(node);
-	}
-	env_free_memory(rp_ept);
+        //endpoint must be in a linked list or already freed
+        env_free_memory(rp_ept); 
+    }
 }
 
 /**
@@ -320,14 +323,17 @@ void rpmsg_send_ns_message(struct remote_device *rdev,
 	struct rpmsg_hdr *rp_hdr;
 	struct rpmsg_ns_msg *ns_msg;
 	unsigned short idx;
-	unsigned long len;
+	int len;
 
 	env_lock_mutex(rdev->lock);
 
 	/* Get Tx buffer. */
 	rp_hdr = (struct rpmsg_hdr *)rpmsg_get_tx_buffer(rdev, &len, &idx);
-	if (!rp_hdr)
-		return;
+    if (!rp_hdr)
+    {
+        env_unlock_mutex(rdev->lock);
+        return;
+    }
 
 	/* Fill out name service data. */
 	rp_hdr->dst = RPMSG_NS_EPT_ADDR;
@@ -420,7 +426,7 @@ void rpmsg_return_buffer(struct remote_device *rdev, void *buffer,
  *
  * return - pointer to buffer.
  */
-void *rpmsg_get_tx_buffer(struct remote_device *rdev, unsigned long *len,
+void *rpmsg_get_tx_buffer(struct remote_device *rdev, int *len,
 			  unsigned short *idx)
 {
 	void *data;
@@ -582,6 +588,8 @@ void rpmsg_rx_callback(struct virtqueue *vq)
 	env_unlock_mutex(rdev->lock);
 
 	while (rp_hdr) {
+        /* Clear 'rp_hdr->reserved' field that is used as 'callback' output */
+        rp_hdr->reserved = 0;
 
 		/* Get the channel node from the remote device channels list. */
 		node = rpmsg_rdev_get_endpoint_from_addr(rdev, rp_hdr->dst);
@@ -597,6 +605,9 @@ void rpmsg_rx_callback(struct virtqueue *vq)
 		if ((rp_chnl) && (rp_chnl->state == RPMSG_CHNL_STATE_NS)) {
 			/* First message from RPMSG Master, update channel
 			 * destination address and state */
+            /*
+             * Only for Remote
+             */
 			rp_chnl->dst = rp_hdr->src;
 			rp_chnl->state = RPMSG_CHNL_STATE_ACTIVE;
 
@@ -604,18 +615,31 @@ void rpmsg_rx_callback(struct virtqueue *vq)
 			if (rdev->channel_created) {
 				rdev->channel_created(rp_chnl);
 			}
-		} else {
-			rp_ept->cb(rp_chnl, (void *)RPMSG_LOCATE_DATA(rp_hdr), rp_hdr->len,
-				   rp_ept->priv, rp_hdr->src);
-		}
+        } else if(len <= 0xFFFF) {
+            if (!(rp_hdr->flags & RPMSG_DROP_HDR_FLAG))
+            {
+                rp_ept->cb(rp_chnl, (void *)RPMSG_LOCATE_DATA(rp_hdr), rp_hdr->len,
+                    rp_ept->priv, rp_hdr->src);
+            }
+        } else {
+            /* Any message with totlen > 65535 are dropped, no way to notify the user about it */
+        }
 
-		env_lock_mutex(rdev->lock);
-
-		/* Return used buffers. */
-		rpmsg_return_buffer(rdev, rp_hdr, len, idx);
-
-		rp_hdr =
-		    (struct rpmsg_hdr *)rpmsg_get_rx_buffer(rdev, &len, &idx);
+        env_lock_mutex(rdev->lock);
+        /* Check whether callback wants to hold buffer */
+        if (rp_hdr->reserved & RPMSG_BUF_HELD)
+        {
+            /* 'rp_hdr->reserved' field is now used as storage for
+             * 'idx' and 'len' to release buffer later */
+            ((struct rpmsg_hdr_reserved*)&rp_hdr->reserved)->idx = idx;
+            ((struct rpmsg_hdr_reserved*)&rp_hdr->reserved)->totlen = len;
+        }
+        else
+        {
+            /* Return used buffers. */
+            rpmsg_return_buffer(rdev, rp_hdr, len, idx);
+        }
+        rp_hdr = (struct rpmsg_hdr *) rpmsg_get_rx_buffer(rdev, &len, &idx);
 		env_unlock_mutex(rdev->lock);
 	}
 }
@@ -632,7 +656,7 @@ void rpmsg_rx_callback(struct virtqueue *vq)
  * @param priv        - any private data
  * @param src         - source address
  *
- * @return - none
+ * @return void
  */
 void rpmsg_ns_callback(struct rpmsg_channel *server_chnl, void *data, int len,
 		       void *priv, unsigned long src)
@@ -641,9 +665,6 @@ void rpmsg_ns_callback(struct rpmsg_channel *server_chnl, void *data, int len,
 	struct rpmsg_channel *rp_chnl;
 	struct rpmsg_ns_msg *ns_msg;
 	struct llist *node;
-
-	(void)server_chnl;
-	(void)src;
 
 	rdev = (struct remote_device *)priv;
 

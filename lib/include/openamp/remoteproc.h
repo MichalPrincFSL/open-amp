@@ -69,7 +69,7 @@ struct resource_table {
 	unsigned int ver;
 	unsigned int num;
 	unsigned int reserved[2];
-	unsigned int offset[0];
+	unsigned int offset[1];
 } OPENAMP_PACKED_END;
 
 /**
@@ -84,7 +84,7 @@ struct resource_table {
 OPENAMP_PACKED_BEGIN
 struct fw_rsc_hdr {
 	unsigned int type;
-	unsigned char data[0];
+	unsigned char data[1];
 } OPENAMP_PACKED_END;
 
 /**
@@ -308,7 +308,7 @@ struct fw_rsc_vdev {
 	unsigned char status;
 	unsigned char num_of_vrings;
 	unsigned char reserved[2];
-	struct fw_rsc_vdev_vring vring[0];
+	struct fw_rsc_vdev_vring vring[1];
 } OPENAMP_PACKED_END;
 
 /**

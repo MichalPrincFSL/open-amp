@@ -4,6 +4,7 @@
 /*
  * Copyright (c) 2014, Mentor Graphics Corporation
  * All rights reserved.
+ * Copyright (c) 2016 Freescale Semiconductor, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -408,6 +409,17 @@ struct hil_platform_ops {
      */
 	int (*enable_interrupt) (struct proc_vring * vring_hw);
 
+    /**
+     * disable_interrupt()
+     *
+     * This function disables interrupt(IPI) for given vring.
+     *
+     * @param vring_hw - pointer to vring control block
+     *
+     * @return  - execution status
+     */
+    int (*disable_interrupt)(struct proc_vring *vring_hw);
+ 
     /**
      * reg_ipi_after_deinit()
      * This function register interrupt(IPI) after openamp resource .

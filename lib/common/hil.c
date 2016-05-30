@@ -80,7 +80,7 @@ struct hil_proc *hil_create_proc(int cpu_id)
 	/* If proc already exists then return it */
 	while (proc_hd != NULL) {
 		proc = (struct hil_proc *)proc_hd->data;
-		if (proc->cpu_id == (unsigned int)cpu_id) {
+		if (proc->cpu_id == cpu_id) {
 			return proc;
 		}
 		proc_hd = proc_hd->next;
@@ -155,12 +155,12 @@ void hil_delete_proc(struct hil_proc *proc)
 		if (proc_hd->data == proc) {
 			remove_from_list(&procs.proc_list, proc_hd);
 			env_free_memory(proc_hd);
-			env_free_memory(proc);
 			break;
 		}
 		proc_hd = proc_hd->next;
 	}
 
+	env_free_memory(proc);
 }
 
 /**
@@ -198,7 +198,7 @@ struct hil_proc *hil_get_proc(int cpu_id)
 
 	while (proc_hd != NULL) {
 		struct hil_proc *proc = (struct hil_proc *)proc_hd->data;
-		if (proc->cpu_id == (unsigned int)cpu_id) {
+		if (proc->cpu_id == cpu_id) {
 			return proc;
 		}
 		proc_hd = proc_hd->next;
@@ -340,8 +340,6 @@ void hil_vring_notify(struct virtqueue *vq)
  */
 int hil_get_status(struct hil_proc *proc)
 {
-	(void)proc;
-
 	/* For future use only. */
 	return 0;
 }
@@ -358,8 +356,6 @@ int hil_get_status(struct hil_proc *proc)
  */
 int hil_set_status(struct hil_proc *proc)
 {
-	(void)proc;
-
 	/* For future use only. */
 	return 0;
 }
@@ -421,5 +417,9 @@ void hil_shutdown_cpu(struct hil_proc *proc)
 int hil_get_firmware(char *fw_name, unsigned int *start_addr,
 		     unsigned int *size)
 {
+#if defined(OPENAMP_FIRMWARE_LOADER_ENABLE)
 	return (config_get_firmware(fw_name, start_addr, size));
+#else
+	return -1;
+#endif
 }
